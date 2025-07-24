@@ -14,8 +14,8 @@ function von_neumann_entropy(ψ::Vector{<:Complex}, cut::Int, L::Int)
     svals = svdvals(ψ_matrix)
     S = 0.0
     for s in svals
-        p = abs2(s)
-        if p > 0 && p > 1e-15
+        if s > 1e-15
+            p = abs2(s)
             S -= p * log(p)
         end
     end
@@ -53,9 +53,9 @@ end
 function time_evolution(ψ::Vector{ComplexF64}, dt::Float64, L)
     ψ /= norm(ψ)
     H, _, _ = Hamiltonian(L)
-
+    a = 2π * rand()
     # Apply exp(-im * H * dt) directly to ψ
-    ψ_new = expmv(-im * dt, H, ψ)
+    ψ_new = expmv(-im * a * dt, H, ψ)
 
     # Normalize the state
     ψ_new /= norm(ψ_new)
@@ -93,8 +93,8 @@ function Entropy_t_z(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
     steps = Int(floor(T / dt))
 
     for _ in 1:steps
-        push!(S_list, von_neumann_entropy(s_t, L÷2, L))
-        #push!(S_list, I3(s_t))
+        #push!(S_list, von_neumann_entropy(s_t, L÷2, L))
+        push!(S_list, I3(s_t))
 
         # Time evolution
         s_t = time_evolution(s_t, dt, L)
@@ -105,8 +105,7 @@ function Entropy_t_z(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
             for l in 1:L
                 x = rand()
                 if x < p
-                    m_op = sm_list[l]
-                    p_m_mone = 0.5 * real(s_t' * (sz2l[l]-sm_list[l]) * s_t)
+                    p_m_mone = 0.5 * real(s_t' * (sz2l[l] - sm_list[l]) * s_t)
                     p_m_one = 0.5 * real(s_t' * (sz2l[l] + sm_list[l]) * s_t)
                     x1 = rand()
                     if x1 < p_m_mone
@@ -123,7 +122,7 @@ function Entropy_t_z(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
 
     # Save result to disk
     filename = "L$(L),T$(T),dt$(dt),p$(p),dirZ,s$(shot).npy"
-    #npzwrite(filename, S_list)
+    npzwrite(filename, S_list)
 
     return S_list
 end
