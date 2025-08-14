@@ -159,8 +159,8 @@ end
 
 function Entropy_t_z(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
     Random.seed!(shot)  # Set random seed
-    s_t = random_product_state(L)
-    #s_t = neel_spin1_complex(L)  # Use the Néel state as the initial state 
+    #s_t = random_product_state(L)
+    s_t = neel_spin1_complex(L)  # Use the Néel state as the initial state 
     S_list = Float64[]
 
     # Define Hamiltonian and local observables
@@ -169,8 +169,8 @@ function Entropy_t_z(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
     steps = Int(floor(T / dt))
 
     for _ in 1:steps
-        #push!(S_list, entropy_vn(s_t, L, 1:L÷2)) ## Half-chain entropy
-        push!(S_list, tmi(s_t))
+        push!(S_list, entropy_vn(s_t, L, 1:L÷2)) ## Half-chain entropy
+        #push!(S_list, tmi(s_t))
 
         # Time evolution
         s_t = time_evolution(s_t, dt, L, shot)
@@ -313,8 +313,8 @@ function time_evolution(ψ::Vector{ComplexF64}, dt::Float64, L, shot::Int)
     b = 2π * rand()
     c = 2π * rand()
     # Apply exp(-im * H * dt) directly to ψ
-    H = a * Ha + b * Hb + c * Hc
-    #H = Ha ## To test with Pradip's TDVP code
+    #H = a * Ha + b * Hb + c * Hc
+    H = Ha ## To test with Pradip's TDVP code
     ψ_new = expmv(-im * dt, H, ψ)
 
     # Normalize the state
