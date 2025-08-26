@@ -169,8 +169,8 @@ function Entropy_t_z(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
     steps = Int(floor(T / dt))
 
     for _ in 1:steps
-        #push!(S_list, entropy_vn(s_t, L, 1:L÷2)) ## Half-chain entropy
-        push!(S_list, tmi(s_t))
+        push!(S_list, entropy_vn(s_t, L, 1:L÷2)) ## Half-chain entropy
+        #push!(S_list, tmi(s_t))
 
         # Time evolution
         s_t = time_evolution(s_t, dt, L, shot)
@@ -196,16 +196,17 @@ function Entropy_t_z(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
         end
     end
 
+    """
     # Save result to disk
     filename = "L$(L),T$(T),dt$(dt),p$(p),dirZ,s$(shot).npy"
     npzwrite(filename, S_list)
     
 
     """
-    folder = "/Users/uditvarma/Documents/s3/data"
-    filename = joinpath(folder, "L$(L),T$(T),dt$(dt),p$(p),dirZ,s$(shot).npy")
+    folder = "/Users/uditvarma/Documents/s3_data/data_hc"
+    filename = joinpath(folder, "L$(L),T$(T),dt$(dt),p$(p),dirZ,s$(shot)_hc.npy")
     npzwrite(filename, S_list)
-    """
+    #"""
     
     return S_list
 end
