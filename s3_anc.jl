@@ -79,7 +79,7 @@ function Hamiltonian_an(L)
         Hc += J_list[i] * (spl[i]^2 * spl[ip] * szl[ip] + sml[i]^2 * sml[ip] * szl[ip] + adjoint(spl[i]^2 * spl[ip] * szl[ip]) + adjoint(sml[i]^2 * sml[ip] * szl[ip]))
     end
 
-    return Ha, Hb, Hc, sz2l, szl 
+    return Ha, Hb, Hc, Hd, He, sz2l, szl 
 end
 
 function Entropy_z_an(L::Int, dt::Float64, p::Float64, shot::Int)
@@ -518,7 +518,7 @@ end
 function time_evolution(ψ::Vector{ComplexF64}, dt::Float64, L, shot::Int)
     Random.seed!(shot)  # Set random seed for reproducibility
     ψ /= norm(ψ)
-    Ha, Hb, Hc, _, _ = Hamiltonian_an(L)
+    Ha, Hb, Hc, Hd, He, _, _ = Hamiltonian_an(L)
     a = 2π * rand()
     b = 2π * rand()
     c = 2π * rand()
@@ -551,4 +551,55 @@ function neel_spin1_complex(N::Int)
     psi_complex = ComplexF64.(psi)  # broadcast conversion
     
     return psi_complex
+end
+
+function Entropy_z_an(L::Int, dt::Float64, p::Float64, shot::Int)
+    ## Change s_t to the Bell state as required
+    #s_t = spin1_bell(L)
+    s_t = spin1_ghz(L)
+    T   = 10 * L ## PRX paper
+    _, _, _, _, _, sz2l, szl = Hamiltonian(L)
+    Sanc_list = Float64[]
+
+    steps = Int(floor(T / dt))
+
+    for n in 1:steps
+        push!(Sanc_list, entropy_vn(s_t, L, 1:L-1)) ## Entropy of the ancilla spin
+
+        # Time evolution
+        s_t = time_evolution(s_t, dt, L, shot)
+
+        # Effective measurement probability:
+        #   = 0.0  for n ≤ steps/2
+        #   = p    for n > steps/2
+        p_eff = (n <= steps ÷ 5 ? 0.0 : p)
+
+        # Measurements
+        if p_eff != 0
+            for l in 1:L
+                x = rand()
+                if x < p_eff
+                    p_m_zero = real(s_t' * (sz2l[l]) * s_t)
+                    x1 = rand()
+                    if x1 < p_m_zero
+                        s_t = (sz2l[l] * s_t) / sqrt(p_m_zero)
+                    else
+                        s_t = (s_t - sz2l[l] * s_t) / sqrt(1 - p_m_zero)
+                    end
+                end
+            end
+        end
+    end
+
+    
+    # Save result to disk
+    """
+    filename = "L$(L),T$(T),dt$(dt),p$(p),dirZ,s$(shot)_anc.npy"
+    npzwrite(filename, Sanc_list)
+    """
+    folder = "/Users/uditvarma/Documents/s3_data/data_anc"
+    filename = joinpath(folder, "L$(L),T$(T),dt$(dt),p$(p),dirZ,s$(shot)_anc.npy")
+    npzwrite(filename, Sanc_list)
+    #"""
+    return Sanc_list
 end

@@ -6,6 +6,7 @@ using Random
 using DelimitedFiles
 using NPZ
 using ExpmV
+using Dates
 
 """
 function von_neumann_entropy(ψ::Vector{<:Complex}, cut::Int, L::Int)
@@ -152,7 +153,24 @@ function Hamiltonian(L)
         Hc += (spl[i]^2 * spl[ip] * szl[ip] + sml[i]^2 * sml[ip] * szl[ip] + adjoint(spl[i]^2 * spl[ip] * szl[ip]) + adjoint(sml[i]^2 * sml[ip] * szl[ip]))
     end
 
-    return Ha, Hb, Hc, sz2l, szl 
+    Hd = spzeros(ComplexF64, dim, dim)
+
+    for i in 1:L-2
+        ip = (i % L) + 2  # Periodic boundary
+        Hd += ((spl[i]^2 * sml[ip]^2 + sml[i]^2 * spl[ip]^2) + adjoint((spl[i]^2 * sml[ip]^2 + sml[i]^2 * spl[ip]^2)))
+    end
+    Hd += ((spl[L-1]^2 * sml[1]^2 + sml[L-1]^2 * spl[1]^2) + adjoint((spl[L-1]^2 * sml[1]^2 + sml[L-1]^2 * spl[1]^2)))
+    Hd += ((spl[L]^2 * sml[2]^2 + sml[L]^2 * spl[2]^2) + adjoint((spl[L]^2 * sml[2]^2 + sml[L]^2 * spl[2]^2)))
+    
+    
+    He = spzeros(ComplexF64, dim, dim)
+
+    for i in 1:L
+        ip = (i % L) + 1  # Periodic boundary
+        He += (szl[i] * szl[ip])
+    end
+
+    return Ha, Hb, Hc, Hd, He, sz2l, szl 
 end
 
 ### This function is for Z measurements only
@@ -164,7 +182,7 @@ function Entropy_t_z(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
     S_list = Float64[]
 
     # Define Hamiltonian and local observables
-    _, _, _, sz2l, szl = Hamiltonian(L)
+    _, _, _, _, _, sz2l, szl = Hamiltonian(L)
     sm_list = szl
     steps = Int(floor(T / dt))
 
@@ -309,13 +327,14 @@ end
 function time_evolution(ψ::Vector{ComplexF64}, dt::Float64, L, shot::Int)
     Random.seed!(shot)  # Set random seed for reproducibility
     ψ /= norm(ψ)
-    Ha, Hb, Hc, _, _ = Hamiltonian(L)
+    Ha, Hb, Hc, Hd, He, _, _ = Hamiltonian(L)
     a = 2π * rand()
     b = 2π * rand()
     c = 2π * rand()
     # Apply exp(-im * H * dt) directly to ψ
-    H = a * Ha + b * Hb + c * Hc
-    #H = Ha ## To test with Pradip's TDVP code
+    #H = a * Ha + b * Hb + c * Hc
+    #H = a * Ha + b * Hd + c * He ## Sz^2 conserving part
+    H = Hd # Only Heisenberg part
     ψ_new = expmv(-im * dt, H, ψ)
 
     # Normalize the state
@@ -342,4 +361,28 @@ function neel_spin1_complex(N::Int)
     psi_complex = ComplexF64.(psi)  # broadcast conversion
     
     return psi_complex
+end
+
+function total_Sz2(L)
+    _, _, _, _, _, sz2l, _ = Hamiltonian(L)  # get sz² list from your Hamiltonian builder
+    dim = 3^L
+    Sz2_tot = spzeros(ComplexF64, dim, dim)
+
+    for i in 1:L
+        Sz2_tot += sz2l[i]
+    end
+
+    return Sz2_tot
+end
+
+function total_Sz(L)
+    _, _, _, _, _, _, szl = Hamiltonian(L)  # get sz list from your Hamiltonian builder
+    dim = 3^L
+    Sz_tot = spzeros(ComplexF64, dim, dim)
+
+    for i in 1:L
+        Sz_tot += szl[i]
+    end
+
+    return Sz_tot
 end
