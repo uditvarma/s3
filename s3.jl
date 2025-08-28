@@ -387,7 +387,9 @@ function total_Sz(L)
     return Sz_tot
 end
 
-function Entropy_t_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
+## For Z2 measurements only
+
+function Entropy_t_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int) 
     Random.seed!(shot)  # Set random seed
     #s_t = random_product_state(L)
     s_t = spin1_state(L)  # superposition over all Sz sectors
@@ -428,11 +430,11 @@ function Entropy_t_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
         end
     end
 
-    """
+    #"""
     # Save result to disk
-    filename = "L$(L),T$(T),dt$(dt),p$(p),dirZ2,s$(shot).npy"
-    npzwrite(filename, S_list)
-    filenameq = "L$(L),T$(T),dt$(dt),p$(p),dirZ,s$(shot)_Qnv.npy"
+    #filename = "L$(L),T$(T),dt$(dt),p$(p),dirZ2,s$(shot)_hc.npy" ## half-chain entropy
+    #npzwrite(filename, S_list)
+    filenameq = "L$(L),T$(T),dt$(dt),p$(p),dirZ,s$(shot)_qnv.npy" ## QNV variance
     npzwrite(filenameq, Q_qnv_list)
 
     """
@@ -442,7 +444,7 @@ function Entropy_t_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
     filenameq = joinpath(folderq, "L$(L),T$(T),dt$(dt),p$(p),dirZ2,s$(shot)_Qnv.npy")
     npzwrite(filename, S_list)
     npzwrite(filenameq, Q_qnv_list)
-    #"""
+    """
     
     return S_list
 end
