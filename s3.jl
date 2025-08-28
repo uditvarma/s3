@@ -333,8 +333,8 @@ function time_evolution(ψ::Vector{ComplexF64}, dt::Float64, L, shot::Int)
     c = 2π * rand()
     # Apply exp(-im * H * dt) directly to ψ
     #H = a * Ha + b * Hb + c * Hc
-    #H = a * Ha + b * Hd + c * He ## Sz^2 conserving part
-    H = Hd # Only Heisenberg part
+    H = a * Ha + b * Hd + c * He ## Sz^2 conserving part
+    #H = Hd # Only Heisenberg part
     ψ_new = expmv(-im * dt, H, ψ)
 
     # Normalize the state
@@ -386,3 +386,77 @@ function total_Sz(L)
 
     return Sz_tot
 end
+
+function Entropy_t_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
+    Random.seed!(shot)  # Set random seed
+    #s_t = random_product_state(L)
+    s_t = spin1_state(L)  # superposition over all Sz sectors
+    S_list = Float64[]
+    Q_qnv_list = Float64[]
+
+    Q2_op = total_Sz2(L) * total_Sz2(L)
+    Q_op = total_Sz2(L)
+
+    # Define Hamiltonian and local observables
+    _, _, _, _, _, sz2l, _ = Hamiltonian(L)
+
+    steps = Int(floor(T / dt))
+
+    for _ in 1:steps
+        push!(S_list, entropy_vn(s_t, L, 1:L÷2)) ## Half-chain entropy
+        push!(Q_qnv_list, real(s_t' * Q2_op * s_t) - real(s_t' * Q_op * s_t)^2) ## Quantum number variance in a trajectory
+        #push!(S_list, tmi(s_t))
+
+        # Time evolution
+        s_t = time_evolution(s_t, dt, L, shot)
+        #s_t /= norm(s_t)
+
+        # Measurements
+        if p != 0
+            for l in 1:L
+                x = rand()
+                if x < p
+                    p_m_zero = real(s_t' * (sz2l[l]) * s_t)
+                    x1 = rand()
+                    if x1 < p_m_zero
+                        s_t = (sz2l[l] * s_t) / sqrt(p_m_zero)
+                    else
+                        s_t = (s_t - sz2l[l] * s_t) / sqrt(1 - p_m_zero)
+                    end
+                end
+            end
+        end
+    end
+
+    """
+    # Save result to disk
+    filename = "L$(L),T$(T),dt$(dt),p$(p),dirZ2,s$(shot).npy"
+    npzwrite(filename, S_list)
+    filenameq = "L$(L),T$(T),dt$(dt),p$(p),dirZ,s$(shot)_Qnv.npy"
+    npzwrite(filenameq, Q_qnv_list)
+
+    """
+    folder = "/Users/uditvarma/Documents/s3_data/data_hc"
+    folderq = "/Users/uditvarma/Documents/s3_data/data_qnv"
+    filename = joinpath(folder, "L$(L),T$(T),dt$(dt),p$(p),dirZ2,s$(shot)_hc.npy")
+    filenameq = joinpath(folderq, "L$(L),T$(T),dt$(dt),p$(p),dirZ2,s$(shot)_Qnv.npy")
+    npzwrite(filename, S_list)
+    npzwrite(filenameq, Q_qnv_list)
+    #"""
+    
+    return S_list
+end
+
+function spin1_state(L::Int)
+    # single-site state (qutrit: |1>, |0>, |-1>)
+    site = (1/sqrt(3)) * [1.0, 1.0, 1.0]   # basis ordered as |1>,|0>,|-1>
+    
+    ψ = site
+    for _ in 2:L
+        ψ = kron(ψ, site)
+    end
+    
+    ψ = ComplexF64.(ψ)  # convert to complex vector
+
+    return normalize(ψ)
+end 
