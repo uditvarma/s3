@@ -95,14 +95,16 @@ function Hamiltonian(L)
 
     for i in 1:L
         ip = (i % L) + 1  # Periodic boundary
-        Hb += (spl[i] * szl[i] * sml[ip] * szl[ip] + sml[i] * szl[i] * spl[ip] * szl[ip] + adjoint(spl[i] * szl[i] * sml[ip] * szl[ip]) + adjoint(sml[i] * szl[i] * spl[ip] * szl[ip]))
+        Hb += (spl[i] * szl[i] * sml[ip] * szl[ip] + sml[i] * szl[i] * spl[ip] * szl[ip] + 
+        adjoint(spl[i] * szl[i] * sml[ip] * szl[ip]) + adjoint(sml[i] * szl[i] * spl[ip] * szl[ip]))
     end
 
     Hc = spzeros(ComplexF64, dim, dim)
 
     for i in 1:L
         ip = (i % L) + 1  # Periodic boundary
-        Hc += (spl[i]^2 * spl[ip] * szl[ip] + sml[i]^2 * sml[ip] * szl[ip] + adjoint(spl[i]^2 * spl[ip] * szl[ip]) + adjoint(sml[i]^2 * sml[ip] * szl[ip]))
+        Hc += (spl[i]^2 * spl[ip] * szl[ip] + sml[i]^2 * sml[ip] * szl[ip] + 
+        adjoint(spl[i]^2 * spl[ip] * szl[ip]) + adjoint(sml[i]^2 * sml[ip] * szl[ip]))
     end
 
     Hd = spzeros(ComplexF64, dim, dim)
@@ -171,7 +173,8 @@ function time_evolution(ψ::Vector{ComplexF64}, dt::Float64, L, shot::Int)
     c = 2π * rand()
     # Apply exp(-im * H * dt) directly to ψ
     #H = a * Ha + b * Hb + c * Hc
-    H = a * Ha + b * Hd + c * He ## Sz^2 conserving part
+    H = spzeros(ComplexF64, length(ψ), length(ψ))
+    H .= a .* Ha .+ b .* Hd .+ c .* He ## Sz^2 conserving part
     #H = Hd # Only Heisenberg part
     ψ_new = expmv(-im * dt, H, ψ)
 
@@ -234,7 +237,7 @@ function Entropy_t_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
 
     for _ in 1:steps
         push!(S_list, entropy_vn(s_t, L, 1:L÷2)) ## Half-chain entropy
-        push!(Q_qnv_list, real(s_t' * Q2_op * s_t) - real(s_t' * Q_op * s_t)^2) ## Quantum number variance in a trajectory
+        push!(Q_qnv_list, real(s_t' * Q2_op * s_t)  - real((s_t' * Q_op * s_t)^2))  #Quantum number variance in a trajectory
         #push!(S_list, tmi(s_t))
 
         # Time evolution
@@ -272,6 +275,7 @@ function Entropy_t_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
     filenameq = joinpath(folderq, "L$(L),T$(T),dt$(dt),p$(p),dirZ2,s$(shot)_qnv.npy")
     npzwrite(filename, S_list)
     npzwrite(filenameq, Q_qnv_list)
+    println("n")
     #"""
     
     return Q_qnv_list
@@ -279,7 +283,7 @@ end
 
 function spin1_state(L::Int)
     # single-site state (qutrit: |1>, |0>, |-1>)
-    site = (1/sqrt(3)) * [1.0, 1.0, 1.0]   # basis ordered as |1>,|0>,|-1>
+    site = [1.0, 0.0, 0.0]   # basis ordered as |1>,|0>,|-1>
     
     ψ = site
     for _ in 2:L

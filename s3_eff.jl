@@ -125,6 +125,7 @@ function Hamiltonian(L::Int)
     return Ha, Hd, He, sz2l, szl
 end
 
+"""
 # ----------------------------
 # In-place Hamiltonian update (Option A)
 # ----------------------------
@@ -151,7 +152,7 @@ function time_evolution!(ψ::Vector{ComplexF64},
     ψ_new = expmv(-im * dt, H, ψ)
     return ψ_new ./ norm(ψ_new)
 end
-
+"""
 
 # ----------------------------
 # Entropy_t_z2 (Z^2 measurements) using same in-place H
@@ -163,8 +164,8 @@ function Entropy_t_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
     Q_qnv_list = Float64[]
 
     # Build Hamiltonians once
-    Ha, Hd, He, sz2l, _ = Hamiltonian(L)
-    H = copy(Ha)  # preallocate H
+    _, _, _, sz2l, _ = Hamiltonian(L)
+    #H = copy(Ha)  # preallocate H
 
     # Build global Q operators: Q = sum_i Szi^2
     Q_op = spzeros(ComplexF64, 3^L, 3^L)
@@ -176,9 +177,9 @@ function Entropy_t_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
     steps = Int(floor(T/dt))
     for _ in 1:steps
         push!(S_list, entropy_vn(s_t, L, 1:(L ÷ 2)))
-        push!(Q_qnv_list, real(s_t' * (Q2_op * s_t)) - real(s_t' * (Q_op * s_t))^2)
+        #push!(Q_qnv_list, real(s_t' * (Q2_op * s_t)) - real(s_t' * (Q_op * s_t))^2)
 
-        s_t = time_evolution!(s_t, H, Ha, Hd, He, dt)
+        s_t = time_evolution(s_t, dt, L, shot)
 
         # local Z^2 measurements with probability p per site
         if p != 0
@@ -186,11 +187,10 @@ function Entropy_t_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
                 if rand() < p
                     p_m_zero = real(s_t' * (sz2l[l] * s_t))
                     x1 = rand()
-                    if x1 < p_m_zero && p_m_zero
+                    if x1 < p_m_zero 
                         s_t = (sz2l[l] * s_t) / sqrt(p_m_zero)
                     else
-                        normp = 1 - p_m_zero
-                        s_t = (s_t - sz2l[l] * s_t) / sqrt(normp)
+                        s_t = (s_t - sz2l[l] * s_t) / sqrt(1 - p_m_zero)
                     end
                 end
             end
@@ -208,12 +208,32 @@ function Entropy_t_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
 
 
     folder_hc = "/Users/uditvarma/Documents/s3_data/data_hc_p"
-    folder_qnv = "/Users/uditvarma/Documents/s3_data/data_qnv_p"
+    #folder_qnv = "/Users/uditvarma/Documents/s3_data/data_qnv_p"
     filename_hc = joinpath(folder_hc, "L$(L),T$(T),dt$(dt),p$(p),dirZ2,s$(shot)_hc.npy")
-    filename_qnv = joinpath(folder_qnv, "L$(L),T$(T),dt$(dt),p$(p),dirZ2,s$(shot)_qnv.npy")
+    #filename_qnv = joinpath(folder_qnv, "L$(L),T$(T),dt$(dt),p$(p),dirZ2,s$(shot)_qnv.npy")
     npzwrite(filename_hc, S_list)
-    npzwrite(filename_qnv, Q_qnv_list)
+    #npzwrite(filename_qnv, Q_qnv_list)
     #"""
 
     return Q_qnv_list
+end
+
+function time_evolution(ψ::Vector{ComplexF64}, dt::Float64, L, shot::Int)
+    Random.seed!(shot)  # Set random seed for reproducibility
+    ψ /= norm(ψ)
+    Ha, Hd, He, _, _ = Hamiltonian(L)
+    a = 2π * rand()
+    b = 2π * rand()
+    c = 2π * rand()
+    # Apply exp(-im * H * dt) directly to ψ
+    #H = a * Ha + b * Hb + c * Hc
+    H = spzeros(ComplexF64, length(ψ), length(ψ))
+    H .= a .* Ha .+ b .* Hd .+ c .* He ## Sz^2 conserving part
+    #H = Hd # Only Heisenberg part
+    ψ_new = expmv(-im * dt, H, ψ)
+
+    # Normalize the state
+    ψ_new /= norm(ψ_new)
+    
+    return ψ_new
 end
