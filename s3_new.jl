@@ -44,7 +44,7 @@ Generates a specific initial state for L qutrits, a uniform superposition
 of the three basis states at each site.
 """
 function spin1_state(L::Int)
-    site = normalize!([1.0 + 0.0im, 0.0 + 0.0im, 0.0 + 0.0im])
+    site = normalize!([1.0 + 0.0im, 1.0 + 0.0im, 1.0 + 0.0im])
     ψ = site
     for _ in 2:L
         ψ = kron(ψ, site)
@@ -89,7 +89,7 @@ function get_spin1_operators()
     sz = sparse(ComplexF64[1 0 0; 0 0 0; 0 0 -1])
     sp = 1/sqrt(2) * (sx + im * sy)
     sm = 1/sqrt(2) * (sx - im * sy)
-    sz2 = sz^2
+    sz2 = sz * sz
     
     return id, sx, sy, sz, sp, sm, sz2
 end
@@ -240,7 +240,17 @@ end
 
 Performs a single step of time evolution using the ExpmV library.
 """
-function time_evolution(ψ::Vector{ComplexF64}, H::SparseMatrixCSC, dt::Float64)
+function time_evolution(ψ::Vector{ComplexF64}, L, dt::Float64, shot::Int)
+    Random.seed!(shot)
+    Ha, _, _, Hd, He = Hamiltonian(L)
+    
+    # Generate random Hamiltonian
+    a = 2π * rand()
+    b = 2π * rand()
+    c = 2π * rand()
+
+    H = a * Ha + b * Hd + c * He
+
     ψ_new = expmv(-im * dt, H, ψ)
     return normalize!(ψ_new)
 end
@@ -259,6 +269,7 @@ function Entropy_t_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
     # Initialize state
     s_t = spin1_state(L)
     
+    """
     # Build Hamiltonians once per shot
     Ha, _, _, Hd, He = Hamiltonian(L)
     
@@ -267,6 +278,7 @@ function Entropy_t_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
     b = 2π * rand()
     c = 2π * rand()
     H = a * Ha + b * Hd + c * He
+    """
     
     # Build a list of single-site sz^2 operators for measurement
     sz2l = [create_local_sz2_operator(L, i) for i in 1:L]
@@ -291,7 +303,7 @@ function Entropy_t_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
         push!(Q_qnv_list, qnv)
 
         # Time evolution
-        s_t = time_evolution(s_t, H, dt)
+        s_t = time_evolution(s_t, L, dt, shot)
 
         # Measurements
         if p > 0
@@ -315,8 +327,8 @@ function Entropy_t_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
     end
 
     # Save results to a file
-    folder = "/Users/uditvarma/Documents/s3_data/data_hc"
-    folderq = "/Users/uditvarma/Documents/s3_data/data_qnv"
+    folder = "/Users/uditvarma/Documents/s3_data/data_hcn"
+    folderq = "/Users/uditvarma/Documents/s3_data/data_qnvn"
     mkpath(folder) # Create the folder if it doesn't exist
     mkpath(folderq)
     filename_entropy = joinpath(folder, "L$(L),T$(T),dt$(dt),p$(p),dirZ2,s$(shot)_hc.npy")
@@ -324,6 +336,6 @@ function Entropy_t_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
     
     filename_qnv = joinpath(folderq, "L$(L),T$(T),dt$(dt),p$(p),dirZ2,s$(shot)_qnv.npy")
     npzwrite(filename_qnv, Q_qnv_list)
-    println("m")
-    return Q_qnv_list
+    #println("m")
+    return S_list
 end

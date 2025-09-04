@@ -271,19 +271,21 @@ function Entropy_t_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
     """
     folder = "/Users/uditvarma/Documents/s3_data/data_hc"
     folderq = "/Users/uditvarma/Documents/s3_data/data_qnv"
+    mkpath(folder) # Create the folder if it doesn't exist
+    mkpath(folderq)
     filename = joinpath(folder, "L$(L),T$(T),dt$(dt),p$(p),dirZ2,s$(shot)_hc.npy")
     filenameq = joinpath(folderq, "L$(L),T$(T),dt$(dt),p$(p),dirZ2,s$(shot)_qnv.npy")
     npzwrite(filename, S_list)
     npzwrite(filenameq, Q_qnv_list)
-    println("n")
+    #println("n")
     #"""
     
-    return Q_qnv_list
+    return S_list
 end
 
 function spin1_state(L::Int)
     # single-site state (qutrit: |1>, |0>, |-1>)
-    site = [1.0, 0.0, 0.0]   # basis ordered as |1>,|0>,|-1>
+    site = [1.0, 1.0, 1.0]   # basis ordered as |1>,|0>,|-1>
     
     ψ = site
     for _ in 2:L

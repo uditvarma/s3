@@ -125,7 +125,7 @@ function Hamiltonian(L::Int)
     return Ha, Hd, He, sz2l, szl
 end
 
-"""
+
 # ----------------------------
 # In-place Hamiltonian update (Option A)
 # ----------------------------
@@ -141,18 +141,15 @@ end
 # ----------------------------
 # Time evolution (uses preallocated H and updates in-place)
 # ----------------------------
-function time_evolution!(ψ::Vector{ComplexF64},
-                         H::SparseMatrixCSC{ComplexF64,Int},
-                         Ha::SparseMatrixCSC{ComplexF64,Int},
-                         Hd::SparseMatrixCSC{ComplexF64,Int},
-                         He::SparseMatrixCSC{ComplexF64,Int},
-                         dt::Float64)
+function time_evolution!(ψ::Vector{ComplexF64}, H::SparseMatrixCSC{ComplexF64,Int}, Ha::SparseMatrixCSC{ComplexF64,Int}, Hd::SparseMatrixCSC{ComplexF64,Int},
+    He::SparseMatrixCSC{ComplexF64,Int}, dt::Float64, shot::Int)
+    Random.seed!(shot)  # Set random seed for reproducibility
     a, b, c = 2π*rand(), 2π*rand(), 2π*rand()
     update_H!(H, a, Ha, b, Hd, c, He)
     ψ_new = expmv(-im * dt, H, ψ)
     return ψ_new ./ norm(ψ_new)
 end
-"""
+
 
 # ----------------------------
 # Entropy_t_z2 (Z^2 measurements) using same in-place H
@@ -164,8 +161,8 @@ function Entropy_t_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
     Q_qnv_list = Float64[]
 
     # Build Hamiltonians once
-    _, _, _, sz2l, _ = Hamiltonian(L)
-    #H = copy(Ha)  # preallocate H
+    Ha, Hd, He, sz2l, _ = Hamiltonian(L)
+    H = copy(Ha)  # preallocate H
 
     # Build global Q operators: Q = sum_i Szi^2
     Q_op = spzeros(ComplexF64, 3^L, 3^L)
@@ -179,7 +176,7 @@ function Entropy_t_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
         push!(S_list, entropy_vn(s_t, L, 1:(L ÷ 2)))
         #push!(Q_qnv_list, real(s_t' * (Q2_op * s_t)) - real(s_t' * (Q_op * s_t))^2)
 
-        s_t = time_evolution(s_t, dt, L, shot)
+        s_t = time_evolution!(s_t, H, Ha, Hd, He, dt, shot)
 
         # local Z^2 measurements with probability p per site
         if p != 0
@@ -197,27 +194,27 @@ function Entropy_t_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
         end
     end
 
-    """
+    #"""
     # Save result to disk
     filename = "L$(L),T$(T),dt$(dt),p$(p),dirZ2,s$(shot)_hc.npy" ## half-chain entropy
     npzwrite(filename, S_list)
     filenameq = "L$(L),T$(T),dt$(dt),p$(p),dirZ,s$(shot)_qnv.npy" ## QNV variance
     npzwrite(filenameq, Q_qnv_list)
 
+
     """
-
-
     folder_hc = "/Users/uditvarma/Documents/s3_data/data_hc_p"
     #folder_qnv = "/Users/uditvarma/Documents/s3_data/data_qnv_p"
     filename_hc = joinpath(folder_hc, "L$(L),T$(T),dt$(dt),p$(p),dirZ2,s$(shot)_hc.npy")
     #filename_qnv = joinpath(folder_qnv, "L$(L),T$(T),dt$(dt),p$(p),dirZ2,s$(shot)_qnv.npy")
     npzwrite(filename_hc, S_list)
     #npzwrite(filename_qnv, Q_qnv_list)
-    #"""
+    """
 
-    return Q_qnv_list
+    return S_list
 end
 
+"""
 function time_evolution(ψ::Vector{ComplexF64}, dt::Float64, L, shot::Int)
     Random.seed!(shot)  # Set random seed for reproducibility
     ψ /= norm(ψ)
@@ -237,3 +234,4 @@ function time_evolution(ψ::Vector{ComplexF64}, dt::Float64, L, shot::Int)
     
     return ψ_new
 end
+"""
