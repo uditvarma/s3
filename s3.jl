@@ -237,7 +237,7 @@ function Entropy_t_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
 
     for _ in 1:steps
         push!(S_list, entropy_vn(s_t, L, 1:L÷2)) ## Half-chain entropy
-        push!(Q_qnv_list, real(s_t' * Q2_op * s_t)  - real((s_t' * Q_op * s_t)^2))  #Quantum number variance in a trajectory
+        push!(Q_qnv_list, real(s_t' * Q_op * s_t))  #- real((s_t' * Q_op * s_t)^2))  #Quantum number variance in a trajectory
         #push!(S_list, tmi(s_t))
 
         # Time evolution
@@ -280,7 +280,7 @@ function Entropy_t_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
     #println("n")
     #"""
     
-    return S_list
+    return Q_qnv_list
 end
 
 function spin1_state(L::Int)

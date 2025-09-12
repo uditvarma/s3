@@ -44,7 +44,7 @@ Generates a specific initial state for L qutrits, a uniform superposition
 of the three basis states at each site.
 """
 function spin1_state(L::Int)
-    site = normalize!([1.0 + 0.0im, 1.0 + 0.0im, 1.0 + 0.0im])
+    site = normalize!([1.0 + 0.0im, 1.0 + 0.0im, 1.0 + .0im])
     ψ = site
     for _ in 2:L
         ψ = kron(ψ, site)
@@ -240,9 +240,9 @@ end
 
 Performs a single step of time evolution using the ExpmV library.
 """
-function time_evolution(ψ::Vector{ComplexF64}, L, dt::Float64, shot::Int)
+function time_evolution(ψ::Vector{ComplexF64}, Ha, Hd, He, dt::Float64, shot::Int)
     Random.seed!(shot)
-    Ha, _, _, Hd, He = Hamiltonian(L)
+    #Ha, _, _, Hd, He = Hamiltonian(L)
     
     # Generate random Hamiltonian
     a = 2π * rand()
@@ -250,6 +250,7 @@ function time_evolution(ψ::Vector{ComplexF64}, L, dt::Float64, shot::Int)
     c = 2π * rand()
 
     H = a * Ha + b * Hd + c * He
+    #H = a * Ha
 
     ψ_new = expmv(-im * dt, H, ψ)
     return normalize!(ψ_new)
@@ -268,23 +269,25 @@ function Entropy_t_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
     
     # Initialize state
     s_t = spin1_state(L)
+    #s_t = random_product_state(L)
     
-    """
+    
     # Build Hamiltonians once per shot
     Ha, _, _, Hd, He = Hamiltonian(L)
     
+    """
     # Generate random Hamiltonian
     a = 2π * rand()
     b = 2π * rand()
     c = 2π * rand()
-    H = a * Ha + b * Hd + c * He
+    #H = a * Ha + b * Hd + c * He
     """
     
     # Build a list of single-site sz^2 operators for measurement
     sz2l = [create_local_sz2_operator(L, i) for i in 1:L]
     
     # Build total Sz and Sz^2 operators for QNV calculation
-    Q_op = total_Sz2(L)
+    Q_op = total_Sz2(L) ## conserved charge
     Q2_op = Q_op * Q_op
     
     # Initialize lists to store results
@@ -299,11 +302,12 @@ function Entropy_t_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
         # Record QNV
         exp_Q2 = dot(s_t, Q2_op * s_t)
         exp_Q = dot(s_t, Q_op * s_t)
-        qnv = real(exp_Q2)  - real(exp_Q^2)
+        #qnv = real(exp_Q2)  - real(exp_Q^2)
+        qnv = real(exp_Q)
         push!(Q_qnv_list, qnv)
 
         # Time evolution
-        s_t = time_evolution(s_t, L, dt, shot)
+        s_t = time_evolution(s_t, Ha, Hd, He, dt, shot)
 
         # Measurements
         if p > 0
@@ -337,5 +341,5 @@ function Entropy_t_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
     filename_qnv = joinpath(folderq, "L$(L),T$(T),dt$(dt),p$(p),dirZ2,s$(shot)_qnv.npy")
     npzwrite(filename_qnv, Q_qnv_list)
     #println("m")
-    return S_list
+    return Q_qnv_list
 end
