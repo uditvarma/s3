@@ -8,6 +8,8 @@ using NPZ
 using ExpmV
 using Dates
 
+Random.seed!(Dates.now().instant.periods.value)
+
 # --- Utility Functions ---
 
 """
@@ -67,7 +69,7 @@ function entropy_vn(ψ::Vector{<:Complex}, L::Int, subsystem::AbstractArray{Int}
     
     S = 0.0
     for s in svals
-        if s > 1e-15
+        if s > 1e-12
             p = abs2(s)
             S -= p * log(p)
         end
@@ -147,117 +149,15 @@ function total_Sz2(L::Int)
     return Sz2_tot
 end
 
-
-"""
-    Hamiltonian(L::Int)
-
-Constructs the total Hamiltonian for L sites, consisting of several
-components (Ha, Hb, Hc, Hd, He).
-"""
-function Hamiltonian(L::Int)
-    id, _, _, sz, sp, sm, _ = get_spin1_operators()
-    dim = 3^L
-    
-    # Initialize Hamiltonians
-    Ha = spzeros(ComplexF64, dim, dim)
-    #Hb = spzeros(ComplexF64, dim, dim)
-    #Hc = spzeros(ComplexF64, dim, dim)
-    #Hd = spzeros(ComplexF64, dim, dim)
-    He = spzeros(ComplexF64, dim, dim)
-    
-    for i in 1:L
-        # Periodic boundary condition
-        ip = mod1(i + 1, L)
-        
-        # Ha term: (sp^2_i * sm^2_ip)
-        ops_Ha_1 = fill(id, L)
-        ops_Ha_1[i] = sp^2
-        ops_Ha_1[ip] = sm^2
-        Ha += build_term(ops_Ha_1)
-        
-        # Ha term: (sm^2_i * sp^2_ip)
-        ops_Ha_2 = fill(id, L)
-        ops_Ha_2[i] = sm^2
-        ops_Ha_2[ip] = sp^2
-        Ha += build_term(ops_Ha_2)
-        
-        """
-        # Hb term: (sp_i * sz_i * sm_ip * sz_ip)
-        ops_Hb_1 = fill(id, L)
-        ops_Hb_1[i] = sp * sz
-        ops_Hb_1[ip] = sm * sz
-        Hb += build_term(ops_Hb_1)
-        
-        # Hb term: (sm_i * sz_i * sp_ip * sz_ip)
-        ops_Hb_2 = fill(id, L)
-        ops_Hb_2[i] = sm * sz
-        ops_Hb_2[ip] = sp * sz
-        Hb += build_term(ops_Hb_2)
-
-        # Hc term: (sp^2_i * sp_ip * sz_ip)
-        ops_Hc_1 = fill(id, L)
-        ops_Hc_1[i] = sp^2
-        ops_Hc_1[ip] = sp * sz
-        Hc += build_term(ops_Hc_1)
-        
-        # Hc term: (sm^2_i * sm_ip * sz_ip)
-        ops_Hc_2 = fill(id, L)
-        ops_Hc_2[i] = sm^2
-        ops_Hc_2[ip] = sm * sz
-        Hc += build_term(ops_Hc_2)
-        """
-
-        # He term: (sz_i * sz_ip)
-        ops_He = fill(id, L)
-        ops_He[i] = sz
-        ops_He[ip] = sz
-        He += build_term(ops_He)
-    end
-    
-    """
-    # Hd term: (long-range)
-    for i in 1:L
-        ip = mod1(i + 2, L)
-        ops_Hd_1 = fill(id, L)
-        ops_Hd_1[i] = sp^2
-        ops_Hd_1[ip] = sm^2
-        Hd += build_term(ops_Hd_1)
-
-        ops_Hd_2 = fill(id, L)
-        ops_Hd_2[i] = sm^2
-        ops_Hd_2[ip] = sp^2
-        Hd += build_term(ops_Hd_2)
-    end
-    """
-    
-    # Ha, Hb, Hc, Hd must be Hermitian
-    Ha += adjoint(Ha)
-    #Hb += adjoint(Hb)
-    #Hc += adjoint(Hc)
-    #Hd += adjoint(Hd)
-
-    return Ha, He
-end
-
 """
     time_evolution(ψ::Vector{ComplexF64}, H::SparseMatrixCSC, dt::Float64)
 
 Performs a single step of time evolution using the ExpmV library.
 """
-function time_evolution(ψ::Vector{ComplexF64}, L, dt::Float64, shot::Int)
-    #Random.seed!(shot)
-    """
-    Ha, _, _, Hd, He = Hamiltonian(L)
-    # Generate random Hamiltonian
-    a = 2π * rand()
-    b = 2π * rand()
-    c = 2π * rand()
+function time_evolution(ψ::Vector{ComplexF64}, L)
 
-    H = a * Ha + b * Hd + c * He
-    ψ_new = expmv(-im * dt, H, ψ)
-    """
-    U_odd  = odd_layer(L, dt)
-    U_even = even_layer(L, dt)
+    U_odd  = odd_layer(L)
+    U_even = even_layer(L)
 
     # One full brick-wall step:
     U_step = U_even * U_odd
@@ -274,23 +174,13 @@ end
 Simulates the time evolution of a quantum state with random Hamiltonians and Z² measurements.
 Records and saves the half-chain entanglement entropy and QNV at each time step.
 """
-function Entropy_t_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int) 
-    #Random.seed!(shot)
+function Entropy_t_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
     
     # Initialize state
     #s_t = spin1_state(L)
     s_t = random_product_state(L)
     
-    """
-    # Build Hamiltonians once per shot
-    Ha, _, _, Hd, He = Hamiltonian(L)
     
-    # Generate random Hamiltonian
-    a = 2π * rand()
-    b = 2π * rand()
-    c = 2π * rand()
-    H = a * Ha + b * Hd + c * He
-    """
     
     # Build a list of single-site sz^2 operators for measurement
     sz2l = [create_local_sz2_operator(L, i) for i in 1:L]
@@ -303,6 +193,7 @@ function Entropy_t_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
     # Initialize lists to store results
     S_list = Float64[]
     Q_qnv_list = Float64[]
+    P_list = Float64[]
     steps = Int(floor(T / dt))
 
     for _ in 1:steps
@@ -317,29 +208,39 @@ function Entropy_t_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
         push!(Q_qnv_list, qnv)
 
         # Time evolution
-        s_t = time_evolution(s_t, L, dt, shot)
-
-        # Measurements
+        s_t = time_evolution(s_t, L)
+        
+        #"""
+        # Measurements S^z
         if p != 0
             for l in 1:L
                 x = rand()
                 if x < p
-                    p_m_mone = 0.5 * real(s_t' * (sz2l[l]-szl[l]) * s_t)
-                    p_m_one = 0.5 * real(s_t' * (sz2l[l] + szl[l]) * s_t)
+                    P_mone = 0.5 * (sz2l[l] - szl[l]) ## projection operators
+                    P_one = 0.5 * (sz2l[l] + szl[l])
+                    psi_mone = P_mone * s_t # non-normalized states
+                    psi_one = P_one * s_t 
+                    psi_zero = (s_t - sz2l[l] * s_t)
+                    p_m_mone = real(psi_mone' * psi_mone) # probabilities
+                    p_m_one = real(psi_one' * psi_one)
+                    p_m_zero = real(psi_zero' * psi_zero)
                     x1 = rand()
                     if x1 < p_m_mone
-                        s_t = 0.5 * ((sz2l[l]-szl[l]) * s_t) / sqrt(p_m_mone)
-                    elseif p_m_mone < x1 < p_m_one + p_m_mone
-                        s_t = 0.5 * ((sz2l[l]+szl[l]) * s_t) / sqrt(p_m_one)
+                        s_t = psi_mone / sqrt(p_m_mone)
+                    elseif p_m_mone ≤ x1 < p_m_one + p_m_mone
+                        s_t = psi_one / sqrt(p_m_one)
                     else
-                        s_t = (s_t - sz2l[l] * s_t) / sqrt(1 - p_m_mone - p_m_one)
+                        s_t = (s_t - sz2l[l] * s_t) / sqrt(p_m_zero)
                     end
+                    p_total = p_m_mone + p_m_one + p_m_zero
+                    push!(P_list, p_total)
                 end
             end
         end
+    end
         """
-        # Measurements
-        if p > 0
+        # Measurements S^z2
+        if p != 0
             for l in 1:L
                 x = rand()
                 if x < p
@@ -357,8 +258,8 @@ function Entropy_t_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
                 end
             end
         end
-        """
     end
+    """
 
     # Save results to a file
     folder = "/Users/uditvarma/Documents/s3_data/data_hcrn"
@@ -367,40 +268,17 @@ function Entropy_t_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
     mkpath(folderq)
     filename_entropy = joinpath(folder, "L$(L),T$(T),dt$(dt),p$(p),dirZ2,s$(shot)_hc.npy")
     npzwrite(filename_entropy, S_list)
-    
     filename_qnv = joinpath(folderq, "L$(L),T$(T),dt$(dt),p$(p),dirZ2,s$(shot)_qnv.npy")
     npzwrite(filename_qnv, Q_qnv_list)
-    #println("m")
-    return Q_qnv_list
+    return P_list
 end
 
-"""
-function two_qubit_unitary(shot::Int, dt::Float64)
-    Random.seed!(shot)
-    
+
+function odd_layer(L::Int)
     id, sx, sy, sz, sp, sm, sz2 = get_spin1_operators()
-    dim = 3^2
-    
-    #H = spzeros(ComplexF64, dim, dim)
-    Ha = spzeros(ComplexF64, dim, dim)
-    He = spzeros(ComplexF64, dim, dim)
-    
-    term1 = kron(sp^2, sm^2) + kron(sm^2, sp^2)
-    Ha += 2π * rand() * (term1 + adjoint(term1))
-
-    term2 = kron(sz, sz)
-    He += 2π * rand() * term2
-
-    U = exp(-im * (Ha + He) * dt)
-    return U
-end
-"""
-
-function odd_layer(L::Int, dt::Float64)
-    id, sx, sy, sz, sp, sm, sz2 = get_spin1_operators()
-    U = two_qubit_unitary(1, dt)
+    U = two_qubit_unitary()
     for i in 3:2:L-1
-        U = kron(U, two_qubit_unitary(i, dt))
+        U = kron(U, two_qubit_unitary())
     end
     if isodd(L)
         U = kron(U, id)   # pad last site if odd number of spins
@@ -408,11 +286,11 @@ function odd_layer(L::Int, dt::Float64)
     return U
 end
 
-function even_layer(L::Int, dt::Float64)
+function even_layer(L::Int)
     id, sx, sy, sz, sp, sm, sz2 = get_spin1_operators()
     U = id                          # start with a free spin at site 1
-    for i in 2:2:L-1
-        U = kron(U, two_qubit_unitary(i, dt))
+    for _ in 2:2:L-1
+        U = kron(U, two_qubit_unitary())
     end
     if isodd(L)
         # if L is even, we’ve already used up all spins
@@ -425,8 +303,7 @@ end
 
 using ExponentialUtilities
 
-function two_qubit_unitary(shot::Int, dt::Float64)
-    #Random.seed!(shot)
+function two_qubit_unitary()
     
     id, sx, sy, sz, sp, sm, sz2 = get_spin1_operators()
     dim = 3^2
@@ -438,11 +315,8 @@ function two_qubit_unitary(shot::Int, dt::Float64)
     Ha += 2π * rand() * (term1 + adjoint(term1))
     #Ha += (term1 + adjoint(term1))
     
-    term2 = kron(sz, sz)
-    He += 2π * rand() * term2
-    #He += term2
     
-    H = Matrix(Ha + He)               
-    U = exp(-im * H * dt)            
+    H = Matrix(Ha)               
+    U = exp(-im * H)            
     return sparse(U)
 end
