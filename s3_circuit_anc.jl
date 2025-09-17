@@ -4,55 +4,12 @@ using Arpack
 using Statistics
 using Random
 using DelimitedFiles
+using ExponentialUtilities
 using NPZ
 using ExpmV
 using Dates
 
 Random.seed!(Dates.now().instant.periods.value)
-
-# --- Utility Functions ---
-
-"""
-    random_product_state(L::Int)
-
-Generates a random product state for L qutrits (spin-1 particles).
-Each site state is a random superposition of the three basis states.
-"""
-function random_product_state(L::Int)
-    dim_site = 3
-    state_vec = ComplexF64[]
-    
-    for _ in 1:L
-        # Generate a random state vector for a single qutrit
-        c1 = rand(ComplexF64)
-        c2 = rand(ComplexF64)
-        c3 = rand(ComplexF64)
-        site_state = normalize!([c1, c2, c3])
-
-        if isempty(state_vec)
-            state_vec = site_state
-        else
-            state_vec = kron(state_vec, site_state)
-        end
-    end
-    
-    return normalize!(state_vec)
-end
-
-"""
-    spin1_state(L::Int)
-
-Generates a specific initial state for L qutrits, a uniform superposition
-of the three basis states at each site.
-"""
-function spin1_state(L::Int)
-    site = normalize!([1.0 + 0.0im, 1.0 + 0.0im, 1.0 + 0.0im])
-    ψ = site
-    for _ in 2:L
-        ψ = kron(ψ, site)
-    end
-    return normalize!(ψ)
-end
 
 """
     entropy_vn(ψ::Vector{<:Complex}, L::Int, subsystem::AbstractArray{Int})
@@ -149,128 +106,6 @@ function total_Sz2(L::Int)
     return Sz2_tot
 end
 
-"""
-    time_evolution(ψ::Vector{ComplexF64}, H::SparseMatrixCSC, dt::Float64)
-
-Performs a single step of time evolution using the ExpmV library.
-"""
-function time_evolution(ψ::Vector{ComplexF64}, L)
-
-    U_odd  = odd_layer(L)
-    U_even = even_layer(L)
-
-    # One full brick-wall step:
-    U_step = U_even * U_odd
-    ψ_new = U_step * ψ
-
-    return normalize!(ψ_new)
-end
-
-# --- Main Simulation Function ---
-
-"""
-    Entropy_t_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
-
-Simulates the time evolution of a quantum state with random Hamiltonians and Z² measurements.
-Records and saves the half-chain entanglement entropy and QNV at each time step.
-"""
-function Entropy_t_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
-    
-    # Initialize state
-    #s_t = spin1_state(L)
-    s_t = random_product_state(L)
-    
-    # Build a list of single-site sz^2 operators for measurement
-    sz2l = [create_local_sz2_operator(L, i) for i in 1:L]
-    szl = [create_local_sz_operator(L, i) for i in 1:L]
-    
-    # Build total Sz and Sz^2 operators for QNV calculation
-    Q_op = total_Sz2(L)
-    Q2_op = Q_op * Q_op
-    
-    # Initialize lists to store results
-    S_list = Float64[]
-    Q_qnv_list = Float64[]
-    P_list = Float64[]
-    steps = Int(floor(T / dt))
-
-    for _ in 1:steps
-        # Record half-chain entropy
-        push!(S_list, entropy_vn(s_t, L, 1:L÷2))
-        
-        # Record QNV
-        exp_Q2 = dot(s_t, Q2_op * s_t)
-        exp_Q = dot(s_t, Q_op * s_t)
-        qnv = real(exp_Q2)  - real(exp_Q^2)
-        #qnv = real(exp_Q)
-        push!(Q_qnv_list, qnv)
-
-        # Time evolution
-        s_t = time_evolution(s_t, L)
-        
-        #"""
-        # Measurements S^z
-        if p != 0
-            for l in 1:L
-                x = rand()
-                if x < p
-                    P_mone = 0.5 * (sz2l[l] - szl[l]) ## projection operators
-                    P_one = 0.5 * (sz2l[l] + szl[l])
-                    psi_mone = P_mone * s_t # non-normalized states
-                    psi_one = P_one * s_t 
-                    psi_zero = (s_t - sz2l[l] * s_t)
-                    p_m_mone = real(psi_mone' * psi_mone) # probabilities
-                    p_m_one = real(psi_one' * psi_one)
-                    p_m_zero = real(psi_zero' * psi_zero)
-                    x1 = rand()
-                    if x1 < p_m_mone
-                        s_t = psi_mone / sqrt(p_m_mone)
-                    elseif p_m_mone ≤ x1 < p_m_one + p_m_mone
-                        s_t = psi_one / sqrt(p_m_one)
-                    else
-                        s_t = (s_t - sz2l[l] * s_t) / sqrt(p_m_zero)
-                    end
-                    p_total = p_m_mone + p_m_one + p_m_zero
-                    push!(P_list, p_total)
-                end
-            end
-        end
-    end
-        """
-        # Measurements S^z2
-        if p != 0
-            for l in 1:L
-                x = rand()
-                if x < p
-                    # Measurement on sz^2 operator
-                    op = sz2l[l]
-                    s_t_proj = op * s_t
-                    p_m_zero = real(dot(s_t, s_t_proj))
-                    
-                    x1 = rand()
-                    if x1 < p_m_zero
-                        s_t = s_t_proj / sqrt(p_m_zero)
-                    else
-                        s_t = (s_t - s_t_proj) / sqrt(1 - p_m_zero)
-                    end
-                end
-            end
-        end
-    end
-    """
-
-    # Save results to a file
-    folder = "/Users/uditvarma/Documents/s3_data/data_hcrn"
-    folderq = "/Users/uditvarma/Documents/s3_data/data_qnvrn"
-    mkpath(folder) # Create the folder if it doesn't exist
-    mkpath(folderq)
-    filename_entropy = joinpath(folder, "L$(L),T$(T),dt$(dt),p$(p),dirZ2,s$(shot)_hc.npy")
-    npzwrite(filename_entropy, S_list)
-    filename_qnv = joinpath(folderq, "L$(L),T$(T),dt$(dt),p$(p),dirZ2,s$(shot)_qnv.npy")
-    npzwrite(filename_qnv, Q_qnv_list)
-    return P_list
-end
-
 
 function odd_layer(L::Int)
     id, sx, sy, sz, sp, sm, sz2 = get_spin1_operators()
@@ -299,8 +134,6 @@ function even_layer(L::Int)
     end
 end
 
-using ExponentialUtilities
-
 function two_qubit_unitary()
     
     id, sx, sy, sz, sp, sm, sz2 = get_spin1_operators()
@@ -327,7 +160,7 @@ function time_evolution_an(ψ::Vector{ComplexF64}, L)
     U_odd  = odd_layer(L)
     U_even = even_layer(L)
 
-    U_odd_anc = kron(U_odd, id)
+    U_odd_anc = kron(U_odd, id) ## To couple with the ancilla
     U_even_anc = kron(U_even, id)
 
     # One full brick-wall step:
@@ -337,17 +170,44 @@ function time_evolution_an(ψ::Vector{ComplexF64}, L)
     return normalize!(ψ_new)
 end
 
-function Entropy_an_z(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
+function build_state(L::Int; normalize::Bool=true)
+    up, zero, down = [1.0,0,0], [0,1.0,0], [0,0,1.0]
+
+    kron_list(vs) = reduce(kron, vs)
+
+    # alternating sequences
+    alt_up   = [ isodd(i) ? up   : down for i in 1:L ]
+    alt_down = [ isodd(i) ? down : up   for i in 1:L ]
+
+    # if L odd, replace last with |0>
+    if isodd(L)
+        alt_up[end]   = zero
+        alt_down[end] = zero
+    end
+
+    state1 = kron_list(alt_up)   |> x -> kron(x, up)
+    state2 = kron_list(alt_down) |> x -> kron(x, down)
+    state3 = kron_list(fill(zero, L)) |> x -> kron(x, zero)
+
+    ψ = state1 + state2 + state3
+    ψ = ComplexF64.(ψ)
+    return normalize ? ψ / norm(ψ) : ψ
+end
+
+
+#### Main simulation function
+
+function Entropy_anc_z(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
     
     # Initialize state
     #s_t = spin1_state(L)
-    s_t = random_product_state(L)
-    
+    #s_t = random_product_state(L)
+    s_t = build_state(L) ## Same sector state but maximally entangled
     
     
     # Build a list of single-site sz^2 operators for measurement
-    sz2l = [create_local_sz2_operator(L, i) for i in 1:L]
-    szl = [create_local_sz_operator(L, i) for i in 1:L]
+    sz2l = [create_local_sz2_operator(L+1, i) for i in 1:L]
+    szl = [create_local_sz_operator(L+1, i) for i in 1:L]
     
     
     
@@ -356,16 +216,18 @@ function Entropy_an_z(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
     #P_list = Float64[]
     steps = Int(floor(T / dt))
 
-    for _ in 1:steps
+    for n in 1:steps
         # Record half-chain entropy
-        push!(S_list, entropy_vn(s_t, L, 1:L÷2))
+        push!(S_list, entropy_vn(s_t, L+1, 1:L))
 
         # Time evolution
-        s_t = time_evolution(s_t, L)
+        s_t = time_evolution_an(s_t, L)
+
+        p_eff = (n <= steps ÷ 5 ? 0.0 : p)
         
         #"""
         # Measurements S^z
-        if p != 0
+        if p_eff != 0
             for l in 1:L
                 x = rand()
                 if x < p
@@ -393,51 +255,84 @@ function Entropy_an_z(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
     end
 
     # Save results to a file
-    folder = "/Users/uditvarma/Documents/s3_data/data_hcrn"
+    folder = "/Users/uditvarma/Documents/s3_data/data_anc_c"
     mkpath(folder) # Create the folder if it doesn't exist
-    filename_entropy = joinpath(folder, "L$(L),T$(T),dt$(dt),p$(p),dirZ,s$(shot)_hc.npy")
+    filename_entropy = joinpath(folder, "L$(L),T$(T),dt$(dt),p$(p),dirZ,s$(shot)_anc.npy")
     npzwrite(filename_entropy, S_list)
     return S_list
 end
 
-function Entropy_an_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
+function bell_state_3(N)
+    # local basis vectors: |+1>, |0>, |-1>
+    up   = [1.0, 0.0, 0.0]   # |+1>
+    zero = [0.0, 1.0, 0.0]   # |0>
+    down = [0.0, 0.0, 1.0]   # |-1>
+
+    # helper: kron repeated N times
+    function kron_chain(v, N)
+        result = v
+        for _ in 2:N
+            result = kron(result, v)
+        end
+        return result
+    end
+
+    # product states
+    psi_up   = kron_chain(up, N)
+    psi_zero = kron_chain(zero, N)
+    psi_down = kron_chain(down, N)
+
+    # build the superposition (they are orthogonal computational basis states)
+    psi = psi_up .+ psi_zero .+ psi_down
+
+    # normalize
+    normpsi = norm(psi)
+    psi ./= normpsi
+
+    return ComplexF64.(psi)
+end
+
+function Entropy_anc_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
     
     # Initialize state
     #s_t = spin1_state(L)
-    s_t = random_product_state(L)
-    
+    #s_t = random_product_state(L)
+    s_t = bell_state_3(L+1)
     
     
     # Build a list of single-site sz^2 operators for measurement
-    sz2l = [create_local_sz2_operator(L, i) for i in 1:L]
-    szl = [create_local_sz_operator(L, i) for i in 1:L]
-    
+    sz2l = [create_local_sz2_operator(L+1, i) for i in 1:L]
+    #szl = [create_local_sz_operator(L, i) for i in 1:L]
+    """
     # Build total Sz and Sz^2 operators for QNV calculation
     Q_op = total_Sz2(L)
     Q2_op = Q_op * Q_op
+    """
     
     # Initialize lists to store results
     S_list = Float64[]
-    Q_qnv_list = Float64[]
+    #Q_qnv_list = Float64[]
     #P_list = Float64[]
     steps = Int(floor(T / dt))
 
-    for _ in 1:steps
+    for n in 1:steps
         # Record half-chain entropy
-        push!(S_list, entropy_vn(s_t, L, 1:L÷2))
+        push!(S_list, entropy_vn(s_t, L+1, 1:L))
         
         # Record QNV
-        exp_Q2 = dot(s_t, Q2_op * s_t)
-        exp_Q = dot(s_t, Q_op * s_t)
-        qnv = real(exp_Q2)  - real(exp_Q^2)
+        #exp_Q2 = dot(s_t, Q2_op * s_t)
+        #exp_Q = dot(s_t, Q_op * s_t)
+        #qnv = real(exp_Q2)  - real(exp_Q^2)
         #qnv = real(exp_Q)
-        push!(Q_qnv_list, qnv)
+        #push!(Q_qnv_list, qnv)
 
         # Time evolution
-        s_t = time_evolution(s_t, L)
+        s_t = time_evolution_an(s_t, L)
+
+        p_eff = (n <= steps ÷ 5 ? 0.0 : p)
         
         # Measurements S^z2
-        if p != 0
+        if p_eff != 0
             for l in 1:L
                 x = rand()
                 if x < p
@@ -458,13 +353,13 @@ function Entropy_an_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
     end
 
     # Save results to a file
-    folder = "/Users/uditvarma/Documents/s3_data/data_hcrn"
-    folderq = "/Users/uditvarma/Documents/s3_data/data_qnvrn"
+    folder = "/Users/uditvarma/Documents/s3_data/data_anc_cc"
+    #folderq = "/Users/uditvarma/Documents/s3_data/data_qnvrn"
     mkpath(folder) # Create the folder if it doesn't exist
-    mkpath(folderq)
-    filename_entropy = joinpath(folder, "L$(L),T$(T),dt$(dt),p$(p),dirZ2,s$(shot)_hc.npy")
+    #mkpath(folderq)
+    filename_entropy = joinpath(folder, "L$(L),T$(T),dt$(dt),p$(p),dirZ2,s$(shot)_anc.npy")
     npzwrite(filename_entropy, S_list)
-    filename_qnv = joinpath(folderq, "L$(L),T$(T),dt$(dt),p$(p),dirZ2,s$(shot)_qnv.npy")
-    npzwrite(filename_qnv, Q_qnv_list)
+    #filename_qnv = joinpath(folderq, "L$(L),T$(T),dt$(dt),p$(p),dirZ2,s$(shot)_qnv.npy")
+    #npzwrite(filename_qnv, Q_qnv_list)
     return S_list
 end
