@@ -339,7 +339,7 @@ function Entropy_anc_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
                     # Measurement on sz^2 operator
                     op = sz2l[l]
                     s_t_proj = op * s_t
-                    p_m_zero = real(dot(s_t, s_t_proj))
+                    p_m_zero = real(s_t' * s_t_proj)
                     
                     x1 = rand()
                     if x1 < p_m_zero

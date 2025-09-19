@@ -8,6 +8,8 @@ using NPZ
 using ExpmV
 using Dates
 
+Random.seed!(Dates.now().instant.periods.value)
+
 # --- Utility Functions ---
 
 """
@@ -240,8 +242,7 @@ end
 
 Performs a single step of time evolution using the ExpmV library.
 """
-function time_evolution(ψ::Vector{ComplexF64}, Ha, Hd, He, dt::Float64, shot::Int)
-    Random.seed!(shot)
+function time_evolution(ψ::Vector{ComplexF64}, Ha, Hd, He, dt::Float64)
     #Ha, _, _, Hd, He = Hamiltonian(L)
     
     # Generate random Hamiltonian
@@ -264,8 +265,7 @@ end
 Simulates the time evolution of a quantum state with random Hamiltonians and Z² measurements.
 Records and saves the half-chain entanglement entropy and QNV at each time step.
 """
-function Entropy_t_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int) 
-    Random.seed!(shot)
+function Entropy_t_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
     
     # Initialize state
     s_t = spin1_state(L)
@@ -291,26 +291,26 @@ function Entropy_t_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
     Q2_op = Q_op * Q_op
     
     # Initialize lists to store results
-    S_list = Float64[]
+    #S_list = Float64[]
     Q_qnv_list = Float64[]
     steps = Int(floor(T / dt))
 
     for _ in 1:steps
         # Record half-chain entropy
-        push!(S_list, entropy_vn(s_t, L, 1:L÷2))
+        #push!(S_list, entropy_vn(s_t, L, 1:L÷2))
         
         # Record QNV
         exp_Q2 = dot(s_t, Q2_op * s_t)
         exp_Q = dot(s_t, Q_op * s_t)
-        #qnv = real(exp_Q2)  - real(exp_Q^2)
-        qnv = real(exp_Q)
+        qnv = real(exp_Q2)  - real(exp_Q^2)
+        #qnv = real(exp_Q)
         push!(Q_qnv_list, qnv)
 
         # Time evolution
-        s_t = time_evolution(s_t, Ha, Hd, He, dt, shot)
+        s_t = time_evolution(s_t, Ha, Hd, He, dt)
 
         # Measurements
-        if p > 0
+        if p != 0
             for l in 1:L
                 x = rand()
                 if x < p
@@ -331,12 +331,12 @@ function Entropy_t_z2(L::Int, T::Float64, dt::Float64, p::Float64, shot::Int)
     end
 
     # Save results to a file
-    folder = "/Users/uditvarma/Documents/s3_data/data_hcn"
+    #folder = "/Users/uditvarma/Documents/s3_data/data_hcn"
     folderq = "/Users/uditvarma/Documents/s3_data/data_qnvn"
-    mkpath(folder) # Create the folder if it doesn't exist
+    #mkpath(folder) # Create the folder if it doesn't exist
     mkpath(folderq)
-    filename_entropy = joinpath(folder, "L$(L),T$(T),dt$(dt),p$(p),dirZ2,s$(shot)_hc.npy")
-    npzwrite(filename_entropy, S_list)
+    #filename_entropy = joinpath(folder, "L$(L),T$(T),dt$(dt),p$(p),dirZ2,s$(shot)_hc.npy")
+    #npzwrite(filename_entropy, S_list)
     
     filename_qnv = joinpath(folderq, "L$(L),T$(T),dt$(dt),p$(p),dirZ2,s$(shot)_qnv.npy")
     npzwrite(filename_qnv, Q_qnv_list)
